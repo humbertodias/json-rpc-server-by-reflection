@@ -83,6 +83,8 @@ public class RPCServlet extends HttpServlet {
             Class<?>[] paramTypes = parameterTypes(params);
 
             String[] partsName = jsonRequest.getMethod().split("\\.");
+            if(partsName.length != 2) throw new IllegalArgumentException();
+
             String className = SERVICE_PACKAGE + partsName[0];
             String methodName = partsName[1];
 

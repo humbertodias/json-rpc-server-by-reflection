@@ -7,6 +7,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import rpc.service.Calculator;
 
 import javax.servlet.ReadListener;
 import javax.servlet.ServletConfig;
@@ -15,8 +16,12 @@ import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -46,13 +51,14 @@ public class RPCServletTest {
         assertEquals(error.toString(), stringWriter.toString());
     }
 
-    //@Test
+    @Test
     public void doPostWithName() throws Exception {
 
+        int a = 2, b = 5;
         String method = "Calculator.multiplier";
         Map<String, Object> params = new HashMap<>();
-        params.put("a", 1);
-        params.put("b", 2);
+        params.put("a", a);
+        params.put("b", b);
         String id = "1";
         JSONRPC2Request req = new JSONRPC2Request(method, params, id);
 
@@ -63,7 +69,8 @@ public class RPCServletTest {
 
         ServletContext ctx = mock(ServletContext.class);
         when(ctx.getServletContextName()).thenReturn("mock");
-        when(ctx.getRealPath("/WEB-INF/classes/rpc/service/Calculator.class")).thenReturn("TODO");
+
+        when(ctx.getRealPath("/WEB-INF/classes/rpc/service/Calculator.class")).thenReturn(getClassPath() + "rpc/service/Calculator.class");
 
         ServletConfig cfg = mock(ServletConfig.class);
         when(cfg.getServletContext()).thenReturn(ctx);
@@ -78,9 +85,14 @@ public class RPCServletTest {
         servlet.doPost(request, response);
 
         JSONRPC2Response jsonResponse = new JSONRPC2Response(id);
-        jsonResponse.setResult(3);
+        jsonResponse.setResult(a*b);
         assertEquals(jsonResponse.toString(), stringWriter.toString());
 
+    }
+
+    String getClassPath(){
+        URL[] urls = ((URLClassLoader) ClassLoader.getSystemClassLoader()).getURLs();
+        return Arrays.asList(urls).stream().filter(url -> url.getFile().endsWith("classes/java/main/")).findFirst().get().getFile();
     }
 
     ServletInputStream createServletInputStream(String s, String charset) {
