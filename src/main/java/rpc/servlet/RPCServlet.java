@@ -5,7 +5,9 @@ import com.thetransactioncompany.jsonrpc2.JSONRPC2ParseException;
 import com.thetransactioncompany.jsonrpc2.JSONRPC2Request;
 import com.thetransactioncompany.jsonrpc2.JSONRPC2Response;
 
+import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -35,17 +37,24 @@ public class RPCServlet extends HttpServlet {
         public static String backTrace(Throwable e) {
             StringBuilder sb = new StringBuilder();
             for (StackTraceElement element : e.getStackTrace()) {
-                sb.append(element.toString()).append("\n");
+                sb.append(element.toString()).append(System.lineSeparator());
             }
             return sb.toString();
         }
 
     }
 
+    // convert class name to path
+    public String getWARClassPath(String className) {
+        String classPath = String.join(File.separator, className.split("\\."));
+        return getServletContext().getRealPath("/WEB-INF/classes/" + classPath + ".class");
+    }
+
     // load Service class dynamicaly
     public Object loadService(String className) throws Exception {
+        String warClassPath = getWARClassPath(className);
         ClassLoader parentClassLoader = ServiceReloader.class.getClassLoader();
-        ServiceReloader classLoader = new ServiceReloader(parentClassLoader, this.getServletContext());
+        ServiceReloader classLoader = new ServiceReloader(parentClassLoader, warClassPath);
         Class<?> clazz = classLoader.loadClass(className);
         return clazz.getConstructor().newInstance();
     }
@@ -66,8 +75,9 @@ public class RPCServlet extends HttpServlet {
 
     public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("application/json");
-        PrintWriter out = response.getWriter();
-        out.print(new JSONRPC2Error(JSONRPC2Error.INTERNAL_ERROR.getCode(), "You need to Post JSON-RPC request!"));
+        try (PrintWriter out = response.getWriter()) {
+            out.print(new JSONRPC2Error(JSONRPC2Error.INTERNAL_ERROR.getCode(), "You need to Post JSON-RPC request!"));
+        }
     }
 
     public void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -76,14 +86,14 @@ public class RPCServlet extends HttpServlet {
         Object id = null;
         JSONRPC2Response jsonResponse = null;
         try {
-            JSONRPC2Request jsonRequest = JSONRPC2Request.parse(Strings.toString(request.getInputStream()));
+            JSONRPC2Request jsonRequest = JSONRPC2Request.parse(Strings.toString(request.getInputStream()), false, true);
             id = jsonRequest.getID();
 
             Object[] params = parameters(jsonRequest);
             Class<?>[] paramTypes = parameterTypes(params);
 
             String[] partsName = jsonRequest.getMethod().split("\\.");
-            if(partsName.length != 2) throw new IllegalArgumentException();
+            if (partsName.length != 2) throw new IllegalArgumentException();
 
             String className = SERVICE_PACKAGE + partsName[0];
             String methodName = partsName[1];
@@ -110,7 +120,10 @@ public class RPCServlet extends HttpServlet {
             String message = cause != null ? cause.getMessage() : null;
             jsonResponse = internalError(id, message, Strings.backTrace(e));
         }
-        response.getWriter().print(jsonResponse);
+        try (PrintWriter out = response.getWriter()) {
+            out.println(jsonResponse);
+            out.flush();
+        }
     }
 
     private Class<?>[] parameterTypes(Object[] params) {
@@ -134,11 +147,11 @@ public class RPCServlet extends HttpServlet {
 
     // the only way to reload a class on runtime
     class ServiceReloader extends ClassLoader {
-        private ServletContext servletContext;
+        private String warClassPath;
 
-        public ServiceReloader(ClassLoader parent, ServletContext servletContext) {
+        public ServiceReloader(ClassLoader parent, String warClassPath) {
             super(parent);
-            this.servletContext = servletContext;
+            this.warClassPath = warClassPath;
         }
 
         private byte[] loadClassFromFile(String fileName) throws IOException {
@@ -156,18 +169,11 @@ public class RPCServlet extends HttpServlet {
                 return super.loadClass(name);
             }
             try {
-                String path = getWARClassPath(name);
-                byte[] classData = loadClassFromFile(path);
+                byte[] classData = loadClassFromFile(warClassPath);
                 return defineClass(name, classData, 0, classData.length);
             } catch (IOException e) {
                 throw new ClassNotFoundException(e.getMessage());
             }
-        }
-
-        // convert class name to path
-        public String getWARClassPath(String name) {
-            String classPath = String.join(File.separator, name.split("\\."));
-            return servletContext.getRealPath("/WEB-INF/classes/" + classPath + ".class");
         }
 
     }

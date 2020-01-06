@@ -7,12 +7,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import rpc.service.Calculator;
 
-import javax.servlet.ReadListener;
-import javax.servlet.ServletConfig;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletInputStream;
+import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
@@ -21,9 +17,9 @@ import java.net.URLClassLoader;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -52,10 +48,10 @@ public class RPCServletTest {
     }
 
     @Test
-    public void doPostWithName() throws Exception {
+    public void doPostServiceWithParams() throws Exception {
 
         int a = 2, b = 5;
-        String method = "Calculator.multiplier";
+        String method = "Calculator.multiply";
         Map<String, Object> params = new HashMap<>();
         params.put("a", a);
         params.put("b", b);
@@ -69,8 +65,7 @@ public class RPCServletTest {
 
         ServletContext ctx = mock(ServletContext.class);
         when(ctx.getServletContextName()).thenReturn("mock");
-
-        when(ctx.getRealPath("/WEB-INF/classes/rpc/service/Calculator.class")).thenReturn(getClassPath() + "rpc/service/Calculator.class");
+        when(ctx.getRealPath("/WEB-INF/classes/rpc/service/Calculator.class")).thenReturn(getRuntimeClassPath() + "rpc/service/Calculator.class");
 
         ServletConfig cfg = mock(ServletConfig.class);
         when(cfg.getServletContext()).thenReturn(ctx);
@@ -86,47 +81,46 @@ public class RPCServletTest {
 
         JSONRPC2Response jsonResponse = new JSONRPC2Response(id);
         jsonResponse.setResult(a*b);
-        assertEquals(jsonResponse.toString(), stringWriter.toString());
+        assertEquals(jsonResponse.toString()+ '\n', stringWriter.toString());
 
     }
 
-    String getClassPath(){
+    String getRuntimeClassPath(){
         URL[] urls = ((URLClassLoader) ClassLoader.getSystemClassLoader()).getURLs();
         return Arrays.asList(urls).stream().filter(url -> url.getFile().endsWith("classes/java/main/")).findFirst().get().getFile();
     }
 
     ServletInputStream createServletInputStream(String s, String charset) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try {
+        try(ByteArrayOutputStream baos = new ByteArrayOutputStream()){
             baos.write(s.getBytes(charset));
+
+            final InputStream bais = new ByteArrayInputStream(baos.toByteArray());
+            return new ServletInputStream() {
+
+                @Override
+                public boolean isFinished() {
+                    return false;
+                }
+
+                @Override
+                public boolean isReady() {
+                    return false;
+                }
+
+                @Override
+                public void setReadListener(ReadListener readListener) {
+                }
+
+                @Override
+                public int read() throws IOException {
+                    return bais.read();
+                }
+            };
+
         } catch (Exception e) {
             throw new RuntimeException("No support charset.");
         }
 
-        final InputStream bais = new ByteArrayInputStream(baos.toByteArray());
-
-        return new ServletInputStream() {
-
-            @Override
-            public boolean isFinished() {
-                return false;
-            }
-
-            @Override
-            public boolean isReady() {
-                return false;
-            }
-
-            @Override
-            public void setReadListener(ReadListener readListener) {
-
-            }
-
-            @Override
-            public int read() throws IOException {
-                return bais.read();
-            }
-        };
     }
 
 
