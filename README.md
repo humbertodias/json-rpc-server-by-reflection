@@ -14,7 +14,7 @@ Method: rpc/service/Calculator.multiply
 
     curl -H "Content-Type:application/json" \
     -d '{"id":"1","method":"Calculator.multiply","params":[1,2]}' \
-    http://localhost:8080/reflection-json-rpc-server/rpc
+    http://localhost:8080/json-rpc-server-by-reflection/rpc
 
 OutPut
 
@@ -24,7 +24,7 @@ Method: rpc/service/Misc.now
 
     curl -H "Content-Type:application/json" \
     -d '{"id":"1","method":"Misc.now"}' \
-    http://localhost:8080/reflection-json-rpc-server/rpc
+    http://localhost:8080/json-rpc-server-by-reflection/rpc
 
 OutPut
 
