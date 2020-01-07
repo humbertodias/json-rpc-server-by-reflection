@@ -1,6 +1,6 @@
 # JSONRPC Server
 
-JSON-RPC server using reflection based on Servlet.
+JSON-RPC Server based on JEE with methods self invoked by reflection.
 
 # Run
 
